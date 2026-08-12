@@ -1,0 +1,54 @@
+/* EchoForge Design System — Waybar
+   单色优先：黑 / 白 / 灰；唯一动效是节点呼吸灯 */
+
+* {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  min-height: 0;
+}
+
+window#waybar {
+  background: rgba(0, 0, 0, 0.4); /* --glass-bg (dark) */
+  color: #ffffff;
+  border-bottom: 1px solid #262626; /* --border-color (dark) */
+}
+
+#workspaces button {
+  color: #808080; /* --text-secondary */
+  padding: 0 8px;
+  border-radius: 0;
+}
+
+#workspaces button.active {
+  color: #ffffff;
+  border-bottom: 1px solid #ffffff;
+}
+
+#clock,
+#cpu,
+#memory,
+#network,
+#battery {
+  color: #808080;
+  padding: 0 12px;
+}
+
+/* ── 节点呼吸灯（ef-cli 状态映射，CLAUDE.MD §3）──
+   灰色熄灭 = OFF；高亮白呼吸 = Devnet / Mithril 运行中 */
+#custom-efnode {
+  padding: 0 12px;
+  font-size: 13px;
+  color: #808080; /* --status-planned：熄灭 */
+}
+
+#custom-efnode.devnet,
+#custom-efnode.mithril {
+  color: #ffffff; /* 高亮白 */
+  animation: breathe 2s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0% { opacity: 1; }
+  50% { opacity: 0.25; }
+  100% { opacity: 1; }
+}

@@ -1,0 +1,24 @@
+# 本地参考副本，不属于仓库
+/nixpkgs-master/
+/echoforge-design/
+
+# nix 构建产物
+result
+result-*
+
+# macOS
+.DS_Store
+
+# 零密钥泄露：任何明文密钥绝不入库（加密后的 secrets.yaml 可以入库）
+*.skey
+*.vkey.plain
+*.key
+*.age.plain
+mnemonic*
+
+# 工程图渲染管线仅本地保留（PNG 成品入库）
+# 重新生成：docs/figures/src/render.sh
+docs/figures/src/
+
+# 内部工程规范，仅本地
+CLAUDE.MD

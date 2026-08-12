@@ -1,0 +1,70 @@
+{
+  "$schema": "https://zed.dev/schema/themes/v0.2.0.json",
+  "name": "EchoForge",
+  "author": "EchoForge LLC",
+  "themes": [
+    {
+      "name": "EchoForge Dark",
+      "appearance": "dark",
+      "style": {
+        "background": "#000000",
+        "editor.background": "#000000",
+        "editor.foreground": "#ffffff",
+        "editor.gutter.background": "#000000",
+        "editor.line_number": "#404040",
+        "editor.active_line_number": "#ffffff",
+        "editor.active_line.background": "#0a0a0a",
+        "surface.background": "#0a0a0a",
+        "elevated_surface.background": "#0a0a0a",
+        "element.background": "#0a0a0a",
+        "element.hover": "#1a1a1a",
+        "element.selected": "#262626",
+        "border": "#262626",
+        "border.variant": "#1a1a1a",
+        "text": "#ffffff",
+        "text.muted": "#808080",
+        "text.placeholder": "#404040",
+        "text.accent": "#e0e0e0",
+        "status_bar.background": "#000000",
+        "title_bar.background": "#000000",
+        "tab_bar.background": "#000000",
+        "tab.active_background": "#0a0a0a",
+        "tab.inactive_background": "#000000",
+        "toolbar.background": "#000000",
+        "panel.background": "#000000",
+        "terminal.background": "#000000",
+        "terminal.foreground": "#ffffff",
+        "scrollbar.thumb.background": "#262626",
+        "scrollbar.track.background": "#000000",
+        "created": "#4ade80",
+        "modified": "#facc15",
+        "deleted": "#ef4444",
+        "error": "#ef4444",
+        "warning": "#facc15",
+        "info": "#60a5fa",
+        "success": "#4ade80",
+        "players": [
+          {
+            "cursor": "#ffffff",
+            "selection": "#26262680"
+          }
+        ],
+        "syntax": {
+          "keyword": { "color": "#ffffff", "font_weight": 700 },
+          "function": { "color": "#e0e0e0" },
+          "type": { "color": "#c0c0c0" },
+          "string": { "color": "#a3a3a3", "font_style": "italic" },
+          "comment": { "color": "#525252", "font_style": "italic" },
+          "comment.doc": { "color": "#525252", "font_style": "italic" },
+          "number": { "color": "#d4d4d4" },
+          "boolean": { "color": "#d4d4d4" },
+          "property": { "color": "#c0c0c0" },
+          "constant": { "color": "#e0e0e0" },
+          "operator": { "color": "#808080" },
+          "punctuation": { "color": "#808080" },
+          "variable": { "color": "#ffffff" }
+        }
+      }
+    }
+  ]
+}
