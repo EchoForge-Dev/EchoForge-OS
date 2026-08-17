@@ -71,6 +71,8 @@ ef-cli node start --mode devnet                      # local private chain (~200
 ef-cli node start --mode mithril --network preview   # Mithril snapshot → preview/preprod/mainnet
 ef-cli node stop                                     # release all node memory & CPU
 ef-cli node status [--waybar]                        # status query / status-bar JSON
+ef-cli pool status [--network N] [--json]            # producer / KES-period status
+ef-cli pool rotate-kes [--network N]                 # new KES pair + offline re-signing steps
 ef-cli profile switch <desktop|dev|spo|depin>        # nixos-rebuild into another profile
 ```
 
@@ -104,11 +106,55 @@ One socket for everything: `/run/echoforge/node.socket`; Ogmios at `127.0.0.1:13
 
 ## SPO block production
 
-Uncomment `mithril.blockProducer.enable = true;` in `profiles/spo.nix`, put the KES / VRF /
-OpCert material into sops (`secrets/secrets.yaml`, decrypted to `/run/secrets/pool/`), and the
-`ef-node@` unit automatically appends `--shelley-kes-key` / `--shelley-vrf-key` /
-`--shelley-operational-certificate`. If the secrets are missing, a build-time assertion
-refuses to build — you cannot ship a producer without its keys.
+Out of the box the `spo` profile is a loopback-only observer: official public topology, no
+inbound port. Two commented role blocks in `profiles/spo.nix` turn it into a real pool —
+pick exactly one per machine.
+
+**Relay** — reachable, public port open, `localRoots` pointing at your own producer and
+sibling relays:
+
+```nix
+hostAddr = "0.0.0.0";
+mithril.openFirewall = true;
+mithril.topology.localRoots = [ { address = "10.0.0.10"; port = 3001; } ];
+mithril.topology.bootstrapPeers = [ { address = "backbone.cardano.iog.io"; port = 3001; } ];
+```
+
+**Block producer** — keeps its loopback/private address and stays out of `allowedTCPPorts`;
+`localRoots` lists only your own relays, and the generated topology pins
+`useLedgerAfterSlot = -1` with `bootstrapPeers = null`, so the producer never touches public
+peer discovery:
+
+```nix
+mithril.blockProducer.enable = true;
+mithril.topology.localRoots = [ { address = "relay-1.example.com"; port = 3001; } ];
+```
+
+With `blockProducer.enable`, the `ef-node@` unit appends `--shelley-kes-key` /
+`--shelley-vrf-key` / `--shelley-operational-certificate`, sourced from sops
+(`secrets/secrets.yaml` → `/run/secrets/pool/`). Missing secrets fail the build — you cannot
+ship a producer without its keys. Build-time guards also catch `openFirewall` with a loopback
+`hostAddr` (assertion), and warn when a producer runs public topology, opens its port, or sets
+bootstrap peers.
+
+Day-to-day operation runs through `ef-cli pool`. `cardano-cli` is on `PATH` on any
+node-enabled profile, with `CARDANO_NODE_SOCKET_PATH` pre-pointed at
+`/run/echoforge/node.socket` (the operator account is in the `cardano` group; the socket is
+`0770`, the KES/VRF keys stay `0400` and out of reach):
+
+```bash
+ef-cli pool status          # KES period, certificate validity window, on-chain vs local counter
+ef-cli pool rotate-kes      # new KES pair in tmpfs + the exact offline issue-op-cert command
+```
+
+`rotate-kes` generates the KES pair into `$XDG_RUNTIME_DIR` (memory-backed, never on disk) and
+computes the current KES period from chain tip and Shelley genesis. It stops there by design:
+the cold key lives on your offline signer, so re-issuing the operational certificate and
+folding both artifacts back into sops stay manual steps.
+
+**Not covered:** on-chain pool onboarding — cold/stake key generation, pool registration and
+delegation certificates, metadata hosting, and the 500 ADA deposit transaction — is plain
+`cardano-cli` work against the running node.
 
 <img src="docs/figures/05-spo.png" alt="SPO workflow — ef-cli triggers the Mithril snapshot sync unit, then the full-node unit; block-production keys are injected via sops; relay vs producer comparison">
 

@@ -36,7 +36,36 @@ pool:
     { "type": "NodeOperationalCertificate", ... }
 ```
 
-模块会自动声明对应的 `sops.secrets."pool/…"`（owner=cardano，mode=0400），
-运行期解密到 `/run/secrets/pool/`，仅内存挂载、不落盘。
-KES 轮换 / 重签 OpCert 后重新 `sops secrets/secrets.yaml` 编辑并
-`nixos-rebuild switch`，再 `ef-cli node stop && ef-cli node start --mode mithril …` 即可。
+模块会自动声明对应的 `sops.secrets."pool/…"`，运行期解密到 `/run/secrets/pool/`，
+仅内存挂载、不落盘。权限按材料性质分开：
+
+| 文件 | 模式 | 理由 |
+|---|---|---|
+| `pool/kes.skey` | `0400` | 签名私钥，只有 cardano 用户读 |
+| `pool/vrf.skey` | `0400` | 同上 |
+| `pool/node.cert` | `0440` | 操作证书随区块头公开上链，本就不是秘密；放开组内可读，运维用户才跑得动 `ef-cli pool status` |
+
+## KES 轮换
+
+KES 密钥有效期有限（mainnet 一个周期 129600 slots，最多 62 个周期），到期不换就停止出块。
+在出块机上跑：
+
+```bash
+ef-cli pool status        # 看当前周期、证书有效区间、链上 vs 本地计数器
+ef-cli pool rotate-kes    # 生成新 KES 密钥对 + 打印离线重签步骤
+```
+
+`rotate-kes` 把新密钥对写进 `$XDG_RUNTIME_DIR/ef-pool-rotate`（tmpfs 内存挂载，
+重启即消失），并按链上 tip 与 shelley 创世算出当前 KES period。**它到此为止**：
+冷密钥在离线签名机上，`issue-op-cert` 必须在那边完成 —— 命令连同算好的
+`--kes-period` 会直接打印出来。
+
+拿回新的 `node.cert` 后：
+
+```bash
+nix develop -c sops secrets/secrets.yaml     # 更新 pool/kes.skey 与 pool/node.cert
+sudo nixos-rebuild switch --flake .#echoforge-spo
+ef-cli node stop && ef-cli node start --mode mithril --network mainnet
+ef-cli pool status                           # 确认链上计数器追上本地计数器
+rm -rf "$XDG_RUNTIME_DIR/ef-pool-rotate"     # 清掉内存里的明文 KES 私钥
+```

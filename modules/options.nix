@@ -70,6 +70,86 @@
       mithril = {
         enable = lib.mkEnableOption "Mithril 快照引导的 preview/preprod/mainnet 节点单元（仅由 ef-cli 启动）";
 
+        port = lib.mkOption {
+          type = lib.types.port;
+          default = 3001;
+          description = "节点 P2P 监听端口（中继节点需与拓扑中公布的端口一致）。";
+        };
+
+        openFirewall = lib.mkOption {
+          type = lib.types.bool;
+          default = false;
+          description = ''
+            在防火墙放行 `port`。中继节点必须开启，同时把 `node.hostAddr`
+            改为对外地址；出块节点不应开启 —— 它只主动外连自有中继，
+            入站应由 networking.firewall.extraInputRules 按中继 IP 精确放行。
+          '';
+        };
+
+        topology = {
+          localRoots = lib.mkOption {
+            type = lib.types.listOf (
+              lib.types.submodule {
+                options = {
+                  address = lib.mkOption {
+                    type = lib.types.str;
+                    description = "自有节点的域名或 IP。";
+                  };
+                  port = lib.mkOption {
+                    type = lib.types.port;
+                    default = 3001;
+                    description = "对端 P2P 端口。";
+                  };
+                };
+              }
+            );
+            default = [ ];
+            example = [
+              {
+                address = "relay-1.example.com";
+                port = 3001;
+              }
+            ];
+            description = ''
+              自有节点（trustable local roots）。非空时生成私有 topology.json
+              取代官方公共拓扑：出块节点填自己的中继，中继节点填出块节点与
+              兄弟中继。留空则沿用官方公共拓扑（仅适合观察节点）。
+            '';
+          };
+
+          bootstrapPeers = lib.mkOption {
+            type = lib.types.nullOr (
+              lib.types.listOf (
+                lib.types.submodule {
+                  options = {
+                    address = lib.mkOption { type = lib.types.str; };
+                    port = lib.mkOption {
+                      type = lib.types.port;
+                      default = 3001;
+                    };
+                  };
+                }
+              )
+            );
+            default = null;
+            description = ''
+              P2P bootstrap peers。出块节点必须保持 null（不连公网发现），
+              中继节点可填官方 environments/<network>/topology.json 中的条目。
+              仅在 `topology.localRoots` 非空时生效。
+            '';
+          };
+
+          useLedgerAfterSlot = lib.mkOption {
+            type = lib.types.nullOr lib.types.int;
+            default = null;
+            description = ''
+              从该 slot 起启用 ledger peers。null 时按角色取默认：
+              出块节点 -1（永不使用，只连自有中继），中继节点 0。
+              仅在 `topology.localRoots` 非空时生效。
+            '';
+          };
+        };
+
         blockProducer = {
           enable = lib.mkEnableOption ''
             SPO 出块节点模式：ef-node@ 单元追加 --shelley-kes-key /

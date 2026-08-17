@@ -38,6 +38,9 @@ in
         StateDirectory = "echoforge/devnet";
         RuntimeDirectory = "echoforge";
         RuntimeDirectoryPreserve = true;
+        # 目录 0750 + socket 0770：cardano 组成员（开发者用户）才连得上 node.socket
+        RuntimeDirectoryMode = "0750";
+        UMask = "0007";
         ExecStart = "${devnetRun}/bin/ef-devnet-run";
         Restart = "on-failure";
         RestartSec = 3;
