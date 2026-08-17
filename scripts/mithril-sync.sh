@@ -38,3 +38,4 @@ echo "==> Downloading latest certified $NETWORK snapshot via Mithril"
 mithril-client cardano-db download latest --download-dir "$STATE"
 
 echo "==> Snapshot restored to $STATE/db"
+echo "    ✓ certified by many, verified by you"

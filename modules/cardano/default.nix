@@ -16,6 +16,7 @@ in
     ./devnet.nix
     ./mithril.nix
     ./indexers.nix
+    ./led.nix
   ];
 
   config = lib.mkIf nodeEnabled {

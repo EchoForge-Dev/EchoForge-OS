@@ -8,6 +8,7 @@
 }:
 let
   cfg = config.echoforge;
+  brand = import ../common/brand.nix;
 
   devnetRun = pkgs.writeShellApplication {
     name = "ef-devnet-run";
@@ -25,6 +26,7 @@ in
 
     systemd.services.ef-devnet = {
       description = "EchoForge Local Devnet (single-node private Cardano chain)";
+      documentation = brand.unitDocumentation;
       # 刻意没有 wantedBy —— 仅 ef-cli node start --mode devnet 可拉起
       environment = {
         EF_DEVNET_MAGIC = toString cfg.node.devnet.magic;

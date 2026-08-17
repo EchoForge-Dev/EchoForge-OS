@@ -1,5 +1,5 @@
 {
-  description = "EchoForge OS (EFOS) — declarative NixOS for the full Cardano ecosystem";
+  description = "EchoForge OS (EFOS) — declarative NixOS for the full Cardano ecosystem · All for Simple · est. 2026-04-11";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

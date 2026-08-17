@@ -9,11 +9,13 @@
 }:
 let
   cfg = config.echoforge;
+  brand = import ../common/brand.nix;
 in
 {
   config = lib.mkIf cfg.node.indexers.enable {
     systemd.services.ef-ogmios = {
       description = "EchoForge Ogmios bridge (localhost only)";
+      documentation = brand.unitDocumentation;
       # 仅由 ef-cli 拉起
       serviceConfig = {
         Type = "simple";
@@ -39,6 +41,7 @@ in
 
     systemd.services.ef-kupo = {
       description = "EchoForge Kupo indexer (localhost only)";
+      documentation = brand.unitDocumentation;
       serviceConfig = {
         Type = "simple";
         User = "cardano";

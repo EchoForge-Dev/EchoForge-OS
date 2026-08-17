@@ -73,6 +73,7 @@ ef-cli node stop                                     # release all node memory &
 ef-cli node status [--waybar]                        # status query / status-bar JSON
 ef-cli pool status [--network N] [--json]            # producer / KES-period status
 ef-cli pool rotate-kes [--network N]                 # new KES pair + offline re-signing steps
+ef-cli version                                       # version / profile / build revision
 ef-cli profile switch <desktop|dev|spo|depin>        # nixos-rebuild into another profile
 ```
 
@@ -196,3 +197,5 @@ assets under `docs/brand/` are **not** open source — see [LICENSE-NOTICE.md](L
 <div align="center">
 <sub>Design language: EchoForge Design System — pure black / white / gray, four status colors, IBM Plex Mono.</sub>
 </div>
+
+<!-- est. 2026-04-11 · All for Simple — stickman charles -->

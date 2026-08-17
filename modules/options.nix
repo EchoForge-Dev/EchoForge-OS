@@ -1,5 +1,5 @@
 # EchoForge 全局选项命名空间
-{ lib, ... }:
+{ config, lib, ... }:
 {
   options.echoforge = {
     profile = lib.mkOption {
@@ -43,6 +43,16 @@
 
     gui.enable = lib.mkEnableOption "EchoForge GUI（Hyprland + Waybar + EFDS 视觉规范）";
 
+    eggs.enable = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        EchoForge 彩蛋层（系统层：机器身份 / 控制台调色板 / sudo 与包管理器提示 / GUI 附加项 / depin LED）。
+        全部为静态文本或按需触发，无守护进程、无网络、无特权变化；生产机只拿到被动元数据。
+        ef-cli 内建的彩蛋不受此开关影响。
+      '';
+    };
+
     node = {
       hostAddr = lib.mkOption {
         type = lib.types.str;
@@ -61,9 +71,10 @@
           description = "devnet cardano-node 监听端口。";
         };
         magic = lib.mkOption {
-          type = lib.types.int;
+          type = lib.types.ints.u32;
           default = 42;
-          description = "devnet testnet magic。";
+          example = 20260411; # 2026-04-11 —— EchoForge 成立日写成整数（仅示例；默认保持 42 以兼容 cardano-cli/yaci 的肌肉记忆）
+          description = "devnet testnet magic（只在首次生成创世时生效；改动后需删除已有创世目录才会重建）。";
         };
       };
 
@@ -179,6 +190,13 @@
       };
 
       indexers.enable = lib.mkEnableOption "Ogmios + Kupo 本地索引层（绑定 127.0.0.1，仅由 ef-cli 启动）";
+
+      led.enable = lib.mkOption {
+        type = lib.types.bool;
+        default = config.echoforge.profile == "depin";
+        defaultText = lib.literalExpression ''config.echoforge.profile == "depin"'';
+        description = "RPi4 板载 ACT LED 映射节点状态（2 s 呼吸 = 运行，250 ms = Mithril 快照恢复中，mmc0 = 停止）。仅 depin。";
+      };
     };
   };
 }

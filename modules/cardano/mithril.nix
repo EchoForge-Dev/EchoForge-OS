@@ -11,6 +11,7 @@ let
   mithrilCfg = cfg.node.mithril;
   bp = mithrilCfg.blockProducer;
   top = mithrilCfg.topology;
+  brand = import ../common/brand.nix;
 
   # 仅对落在 sops-nix 解密挂载点下的默认路径自动声明 secrets 条目；
   # 用户改用其他路径时自行负责该文件的存在与属主
@@ -142,6 +143,7 @@ in
     # 快照同步（oneshot，可重入：数据库已存在时直接跳过）
     systemd.services."ef-mithril-sync@" = {
       description = "EchoForge Mithril snapshot sync (%i)";
+      documentation = brand.unitDocumentation;
       serviceConfig = {
         Type = "oneshot";
         User = "cardano";
@@ -155,6 +157,7 @@ in
     # 全节点（模板单元，实例 = preview | preprod | mainnet）
     systemd.services."ef-node@" = {
       description = "EchoForge Cardano node (%i, mithril-bootstrapped)";
+      documentation = brand.unitDocumentation;
       # 刻意没有 wantedBy —— 仅 ef-cli node start --mode mithril 可拉起
       environment = {
         EF_HOST = cfg.node.hostAddr;

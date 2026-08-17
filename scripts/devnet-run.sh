@@ -9,9 +9,20 @@ HOST="${EF_HOST:-127.0.0.1}"
 
 GENESIS_DIR="$STATE/genesis"
 
+# 创世只在首次生成；之后改 echoforge.node.devnet.magic 不会自动重建 —— 从已有创世里读出真实 magic，把漂移说出来
+if [ -f "$GENESIS_DIR/shelley-genesis.json" ]; then
+  existing="$(sed -n 's/.*"networkMagic": *\([0-9][0-9]*\).*/\1/p' "$GENESIS_DIR/shelley-genesis.json" | head -n1)"
+  if [ -n "$existing" ] && [ "$existing" != "$MAGIC" ]; then
+    echo "!! existing devnet genesis uses magic $existing, configured $MAGIC" >&2
+    echo "!! rm -rf $GENESIS_DIR (and /var/lib/echoforge/kupo) to regenerate" >&2
+  fi
+fi
+
 if [ ! -f "$GENESIS_DIR/configuration.yaml" ]; then
   echo "==> First start: generating devnet genesis (magic=$MAGIC)"
+  if [ "$MAGIC" = 20260411 ]; then echo "    2026-04-11 · founding day, written as a testnet magic"; fi
   rm -rf "$GENESIS_DIR"
+  # 不要给 --start-time 回溯到 2026-04-11：KES / OpCert 的有效窗口从 systemStart 起算，回溯即过期
   cardano-cli conway genesis create-testnet-data \
     --testnet-magic "$MAGIC" \
     --genesis-keys 1 \

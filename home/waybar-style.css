@@ -52,3 +52,28 @@ window#waybar {
   50% { opacity: 0.25; }
   100% { opacity: 1; }
 }
+
+/* ── 彩蛋层 ──
+   sync：Mithril 快照恢复中 —— 灰色呼吸（工作中）；仍然只有节点点这一处动效 */
+#custom-efnode.sync {
+  color: #808080;
+  animation: breathe 2s ease-in-out infinite;
+}
+
+/* 工作区右侧"刻"着看不见的 motto：透明，指针悬停时以 --text-secondary 显形（纯状态，无动画） */
+#custom-motto {
+  padding: 0 12px;
+  letter-spacing: 0.15em;
+  color: rgba(255, 255, 255, 0);
+}
+
+#custom-motto:hover {
+  color: #808080;
+}
+
+/* 一年一度：GENESIS DAY · YEAR n —— 白色、宽字距、静止 */
+#custom-efday {
+  padding: 0 12px;
+  letter-spacing: 0.15em;
+  color: #ffffff;
+}

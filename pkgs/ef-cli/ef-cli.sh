@@ -7,6 +7,9 @@
 #   ef-cli pool status [--network N] [--json]  出块节点 / KES 周期状态
 #   ef-cli pool rotate-kes [--network N]       生成新 KES 密钥对并给出离线重签步骤
 #   ef-cli profile switch <desktop|dev|spo|depin>
+#   ef-cli version                             版本 / Profile / 构建修订
+#
+# 彩蛋层（球标、回声、纪念日等）在 eggs.sh，构建时前置拼接；main() 的兜底分支交给 egg_dispatch。
 
 NETWORKS="preview preprod mainnet"
 SOCKET="/run/echoforge/node.socket"
@@ -35,7 +38,9 @@ USAGE:
   ef-cli pool status [--network preview|preprod|mainnet] [--json]
   ef-cli pool rotate-kes [--network preview|preprod|mainnet] [--force]
   ef-cli profile switch <desktop|dev|spo|depin>
+  ef-cli version
 EOF
+  anniversary_footer
 }
 
 die() {
@@ -74,7 +79,9 @@ cmd_node_start() {
       unit_exists ef-devnet.service \
         || die "当前 Profile 未启用 devnet 模块，请先: ef-cli profile switch dev"
       echo "==> Starting local devnet (~200MB, second-level blocks)"
+      snapshot_socket ef-devnet.service
       sudo systemctl start ef-devnet.service
+      wait_for_echo ef-devnet.service
       start_indexers_if_present
       echo "==> Devnet up. Socket: /run/echoforge/node.socket"
       ;;
@@ -86,9 +93,12 @@ cmd_node_start() {
       unit_exists "ef-node@.service" \
         || die "当前 Profile 未启用 mithril 节点模块，请先: ef-cli profile switch spo"
       echo "==> Mithril snapshot sync for $network (skips if DB exists)"
+      network_epoch_aside "$network"
       sudo systemctl start "ef-mithril-sync@$network.service"
       echo "==> Starting $network node"
+      snapshot_socket "ef-node@$network.service"
       sudo systemctl start "ef-node@$network.service"
+      wait_for_echo "ef-node@$network.service"
       start_indexers_if_present
       echo "==> Node up. Socket: /run/echoforge/node.socket"
       ;;
@@ -107,54 +117,108 @@ cmd_node_stop() {
     fi
   done
   echo "==> All node memory/CPU released"
+  echo "    ○ chain at rest · db kept in /var/lib/echoforge"
 }
 
 node_state() {
-  # 输出: "devnet" | "<network>" | "off"
-  if is_active ef-devnet.service; then
-    echo "devnet"
-    return
-  fi
-  for network in $NETWORKS; do
-    if is_active "ef-node@$network.service"; then
-      echo "$network"
-      return
-    fi
-  done
-  echo "off"
+  # 输出: "devnet" | "<network>" | "sync" | "off"
+  # 一次 systemctl 调用推导全部状态（Waybar 每 3 秒轮询一次，这里必须便宜）；
+  # 无 systemctl 的工作站（macOS）→ off。
+  # 列：UNIT LOAD ACTIVE SUB …。节点单元只认 ACTIVE=active（崩溃重启窗口的 activating/auto-restart 不算运行）；
+  # oneshot 的 ef-mithril-sync@ 运行中是 activating/start → sync。
+  local units u _load active sub _rest sync=0
+  units="$(systemctl list-units --plain --no-legend --state=active,activating 'ef-*.service' 2> /dev/null || true)"
+  while read -r u _load active sub _rest; do
+    case "$u" in
+      ef-devnet.service)
+        if [ "$active" = "active" ]; then
+          echo "devnet"
+          return
+        fi
+        ;;
+      ef-node@*.service)
+        # 只认白名单里的实例名（单元名转义如 \x2d 不能原样进 Waybar JSON）
+        if [ "$active" = "active" ]; then
+          u="${u#ef-node@}"
+          u="${u%.service}"
+          case " $NETWORKS " in
+            *" $u "*)
+              echo "$u"
+              return
+              ;;
+          esac
+        fi
+        ;;
+      ef-mithril-sync@*.service)
+        if [ "$sub" = "start" ]; then sync=1; fi
+        ;;
+    esac
+  done <<< "$units"
+  if [ "$sync" = 1 ]; then echo "sync"; else echo "off"; fi
 }
 
 cmd_node_status() {
-  local waybar=0 state
-  if [ "${1:-}" = "--waybar" ]; then
-    waybar=1
-  fi
+  local waybar=0 state suffix='' glyph ogmios=0
+  case "${1:-}" in
+    --waybar) waybar=1 ;;
+    --breathe)
+      cmd_node_breathe
+      return
+      ;;
+  esac
   state="$(node_state)"
 
   if [ "$waybar" = 1 ]; then
-    # 状态栏呼吸灯协定：off=灰色熄灭，devnet/mithril=高亮白呼吸（样式见 Waybar CSS）
+    # 状态栏呼吸灯协定：off=灰色熄灭，devnet/mithril=高亮白呼吸，sync=灰色呼吸（样式见 Waybar CSS）
+    # 纪念日只改 tooltip（text/class 不动，CSS 契约不受影响）；is_anniversary 为内建判定，零 fork
+    if is_anniversary; then
+      suffix=" · GENESIS DAY · YEAR $(genesis_year)"
+    fi
     case "$state" in
       off)
-        printf '{"text":"●","class":"off","tooltip":"EchoForge Node · OFF"}\n'
+        printf '{"text":"●","class":"off","tooltip":"EchoForge Node · OFF%s"}\n' "$suffix"
         ;;
       devnet)
-        printf '{"text":"●","class":"devnet","tooltip":"EchoForge Node · Local Devnet"}\n'
+        printf '{"text":"●","class":"devnet","tooltip":"EchoForge Node · Local Devnet%s"}\n' "$suffix"
+        ;;
+      sync)
+        printf '{"text":"●","class":"sync","tooltip":"EchoForge Node · Mithril Sync%s"}\n' "$suffix"
         ;;
       *)
-        printf '{"text":"●","class":"mithril","tooltip":"EchoForge Node · %s (mithril)"}\n' "$state"
+        printf '{"text":"●","class":"mithril","tooltip":"EchoForge Node · %s (mithril)%s"}\n' "$state" "$suffix"
         ;;
     esac
     return
   fi
 
-  echo "EchoForge node state: $state"
-  if [ "$state" != "off" ]; then
+  # 首行字形 = Waybar 上那颗点：○ 熄灭 / ◐ 快照恢复中 / ● 运行
+  case "$state" in
+    off) glyph='○' ;;
+    sync) glyph='◐' ;;
+    *) glyph='●' ;;
+  esac
+  if [ "$state" = "off" ] && [ "$(current_profile)" = "desktop" ]; then
+    echo "$glyph EchoForge node state: off · 0 MB / 0 % as promised"
+  else
+    echo "$glyph EchoForge node state: $state"
+  fi
+  if [ "$state" != "off" ] && [ "$state" != "sync" ]; then
     echo "  socket : /run/echoforge/node.socket"
+    if [ -S "$SOCKET" ]; then
+      echo "  echo   : ● received"
+    else
+      echo "  echo   : ◐ pending"
+    fi
     if is_active ef-ogmios.service; then
       echo "  ogmios : ws://127.0.0.1:1337"
+      ogmios=1
     fi
     if is_active ef-kupo.service; then
       echo "  kupo   : http://127.0.0.1:1442"
+    fi
+    # 同步球：只在 Ogmios 活跃时向 127.0.0.1:1337/health 发一次环回 GET（永不进 --waybar 路径）
+    if [ "$ogmios" = 1 ]; then
+      render_sync_sphere
     fi
   fi
 }
@@ -183,6 +247,7 @@ resolve_network() {
   case "$state" in
     off) die "节点未运行 —— 先 ef-cli node start --mode mithril --network <$NETWORKS>，或显式传 --network" ;;
     devnet) die "当前运行的是本地 devnet，pool 子命令只适用于 mithril 节点" ;;
+    sync) die "Mithril 快照恢复中，节点尚未运行 —— 等同步完成后再试" ;;
   esac
   echo "$state"
 }
@@ -368,8 +433,11 @@ main() {
       usage
       ;;
     *)
-      usage
-      exit 1
+      # 彩蛋层（eggs.sh）认识的词直接回答；其余仍是 usage + exit 1
+      if ! egg_dispatch "$@"; then
+        usage
+        exit 1
+      fi
       ;;
   esac
 }
