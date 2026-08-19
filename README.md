@@ -177,9 +177,22 @@ delegation certificates, metadata hosting, and the 500 ADA deposit transaction �
 
 <img src="docs/figures/05-spo.png" alt="SPO workflow — ef-cli triggers the Mithril snapshot sync unit, then the full-node unit; block-production keys are injected via sops; relay vs producer comparison">
 
+## Handing the machine to an AI agent
+
+An immutable, declarative system is an unusual place for an agent trained on Ubuntu habits:
+installing a package, editing `/etc`, enabling a service — the reflexes are all wrong here, and
+they fail quietly rather than loudly. [AGENTS.md](AGENTS.md) states the rules that actually
+apply, the `ef-cli` surface, and a diagnosis section built from failures observed on hardware —
+including several where the surface reading (`syncProgress` at 99%, a unit reporting `active`)
+stayed reassuring while the node was doing nothing at all. It also marks the line an agent must
+not cross alone: anything touching keys, funds, or a producing node.
+
+Claude Code, Cursor and Codex read `AGENTS.md` automatically.
+
 ## Repository layout
 
 ```
+AGENTS.md                  # operating rules for an AI agent running this machine
 flake.nix                  # four profile build targets + package outputs
 ├── profiles/              # desktop / dev / spo / depin (+ depin hardware & disk layers)
 ├── modules/
