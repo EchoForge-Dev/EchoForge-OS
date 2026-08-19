@@ -3,7 +3,10 @@
 NETWORK="${1:?usage: ef-node-run <preview|preprod|mainnet>}"
 STATE="${STATE_DIRECTORY:-/var/lib/echoforge/$NETWORK}"
 RUN_DIR="${RUNTIME_DIRECTORY:-/run/echoforge}"
-HOST="${EF_HOST:-127.0.0.1}"
+# P2P 绑定地址。默认 0.0.0.0 而非回环 —— cardano-node 的 --host-addr 同时决定
+# 出站连接的源地址，绑回环会让所有对端 connect 返回 EINVAL（实测 10 分钟 5121 次
+# 失败、0 个已建立连接、链尖冻结在快照结束处）。入站暴露由防火墙控制，不是这里。
+HOST="${EF_P2P_HOST:-0.0.0.0}"
 PORT="${EF_PORT:-3001}"
 
 # 网络配置取自 cardano-node 发布件自带的 share/<network>/（由 mithril.nix 经

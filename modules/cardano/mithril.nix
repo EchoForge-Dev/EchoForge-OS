@@ -104,12 +104,12 @@ in
         '';
       }
       {
-        assertion = mithrilCfg.openFirewall -> cfg.node.hostAddr != "127.0.0.1";
+        assertion = mithrilCfg.openFirewall -> mithrilCfg.p2pAddr != "127.0.0.1";
         message = ''
           echoforge.node.mithril.openFirewall 放行了 P2P 端口，但
-          echoforge.node.hostAddr 仍是 127.0.0.1 —— 节点只监听回环，
-          外部握手永远打不进来。中继节点请一并把 hostAddr 设为对外地址
-          （通常是 "0.0.0.0"）。
+          echoforge.node.mithril.p2pAddr 仍是 127.0.0.1 —— 节点只绑回环，
+          外部握手永远打不进来。中继节点请把 p2pAddr 设为可路由地址
+          （通常是默认的 "0.0.0.0"）。
         '';
       }
     ];
@@ -118,6 +118,13 @@ in
       lib.optional (bp.enable && !usePrivateTopology) ''
         echoforge: 出块节点正在使用官方公共拓扑 —— 出块节点地址会暴露给全网。
         生产环境必须设置 echoforge.node.mithril.topology.localRoots 指向自有中继。
+      ''
+      ++ lib.optional (mithrilCfg.p2pAddr == "127.0.0.1") ''
+        echoforge.node.mithril.p2pAddr = "127.0.0.1" —— 节点会把出站连接的源地址
+        也绑到回环，去连任何公网对端都返回 EINVAL，结果是零对端、永远停在
+        Mithril 快照结束的那个区块，而 syncProgress 仍显示 99%+，表面健康。
+        除非你确知在做什么（例如完全离线的回放分析），否则请保持默认 0.0.0.0 ——
+        它不会造成对外暴露，入站仍由防火墙把关。
       ''
       ++ lib.optional (bp.enable && mithrilCfg.openFirewall) ''
         echoforge: 出块节点开启了 openFirewall —— 出块节点不该对公网开放 P2P 端口。
@@ -153,8 +160,21 @@ in
       description = "EchoForge Cardano node (%i, mithril-bootstrapped)";
       documentation = brand.unitDocumentation;
       # 刻意没有 wantedBy —— 仅 ef-cli node start --mode mithril 可拉起
+
+      # 系统层重建不得碰正在跑的节点。实测：即使单元文件逐字节未变，
+      # nixos-rebuild switch 仍会重启它；而 Mithril 快照不含账本状态，
+      # 节点追上链尖后还要再活满一个快照间隔（864s）才写下第一份 ledger 快照。
+      # 在那之前被重启 = 从创世完整重放（preview 实测 46 分钟、内存峰值 3.3 GB，
+      # mainnet 是数小时）。对出块节点就是无预警的长时间停机。
+      # 代价：改了 node-run.sh 或节点版本后，运行中的实例仍跑旧代码，
+      # 需要显式 `ef-cli node stop && ef-cli node start ...` 才生效 ——
+      # 这正是「节点只由 ef-cli 掌控生命周期」该有的语义，停机窗口由人来选。
+      restartIfChanged = false;
+      stopIfChanged = false;
       environment = {
-        EF_HOST = cfg.node.hostAddr;
+        # P2P 绑定地址 —— 不是 hostAddr。绑回环会让出站 connect 全部 EINVAL，
+        # 节点零对端、停在快照结束处，而表面看起来完全健康（见 options.nix 说明）。
+        EF_P2P_HOST = mithrilCfg.p2pAddr;
         EF_PORT = toString mithrilCfg.port;
         # 网络配置随二进制同包发布（share/cardano/<network>/），避免运行期抓
         # 「最新」配置与被钉住的节点版本漂移 —— 10.1.4 配 11.x 的配置会死在

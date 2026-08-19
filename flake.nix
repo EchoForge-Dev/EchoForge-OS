@@ -91,25 +91,39 @@
           profile = ./profiles/spo.nix;
         };
 
-        # 4. DePIN 边缘节点 / RPi4：无头、tmpfs 根、ZRAM、断电自愈（aarch64 交叉目标）
+        # 4. DePIN 边缘节点：无头、tmpfs 根、ZRAM、watchdog、断电自愈。
+        #    默认目标是 x86_64 迷你主机（N100 一类）—— 实测 Cardano 全节点在链尖
+        #    占用约 3.1 GB、重放峰值 3.3 GB 且瓶颈在内存，8 GB 以下的板子跑不动。
+        #    硬件相关的部分一律走叠加层，本体 profiles/depin.nix 架构无关。
         #    正式部署形态：SSD 按标签分区（echoforge-nix / echoforge-data / echoforge-swap）
         echoforge-depin = mkProfile {
+          system = "x86_64-linux";
+          profile = ./profiles/depin.nix;
+          extraModules = [ ./profiles/depin-layout-ssd.nix ];
+        };
+
+        # 4a. depin 的 Raspberry Pi 4 硬件变体（aarch64 交叉目标）。
+        #     只多了硬件叠加层：extlinux 引导 + 板载 ACT LED。
+        #     ⚠ 4GB 版跑不动全节点，8GB 版仅够 preview —— 见 depin-hw-rpi4.nix。
+        echoforge-depin-rpi4 = mkProfile {
           system = "aarch64-linux";
           profile = ./profiles/depin.nix;
           extraModules = [
             nixos-hardware.nixosModules.raspberry-pi-4
+            ./profiles/depin-hw-rpi4.nix
             ./profiles/depin-layout-ssd.nix
           ];
         };
 
-        # 4b. depin 的可烧录 SD 镜像形态：根直接落在 SD 卡（NIXOS_SD），
+        # 4b. RPi4 的可烧录 SD 镜像形态：根直接落在 SD 卡（NIXOS_SD），
         #     其余断电自愈策略（ZRAM/watchdog/易失日志）与 4 完全一致。
         #     构建：nix build .#packages.aarch64-linux.depin-sd-image
-        echoforge-depin-sd = mkProfile {
+        echoforge-depin-rpi4-sd = mkProfile {
           system = "aarch64-linux";
           profile = ./profiles/depin.nix;
           extraModules = [
             nixos-hardware.nixosModules.raspberry-pi-4
+            ./profiles/depin-hw-rpi4.nix
             ./profiles/depin-layout-sd.nix
           ];
         };
@@ -131,7 +145,7 @@
         }
         # depin 可烧录 SD 镜像（zstd 压缩 .img.zst，烧录后首次启动自动扩容根分区）
         // lib.optionalAttrs pkgs.stdenv.hostPlatform.isAarch64 {
-          depin-sd-image = self.nixosConfigurations.echoforge-depin-sd.config.system.build.sdImage;
+          depin-sd-image = self.nixosConfigurations.echoforge-depin-rpi4-sd.config.system.build.sdImage;
         }
       );
 

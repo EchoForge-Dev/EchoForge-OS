@@ -1,8 +1,14 @@
-# Profile 4 — echoforge-depin（DePIN 边缘节点 / RPi4, aarch64-linux）
-# 极简无头：无 GUI、ZRAM/SSD Swap、断电自愈
-# 磁盘布局按形态拆分：
+# Profile 4 — echoforge-depin（DePIN 边缘节点 / 无人值守边缘设备）
+# 极简无头：无 GUI、ZRAM/Swap、watchdog、断电自愈
+#
+# 本文件**架构无关**：x86_64 迷你主机与 aarch64 单板机共用同一套策略。
+# 与具体硬件相关的东西一律拆成叠加层，不要写进这里：
+#   depin-hw-rpi4.nix    — RPi4 专属（extlinux 引导、板载 ACT LED）
 #   depin-layout-ssd.nix — 正式部署（tmpfs 根 + SSD 标签分区，等效只读根）
 #   depin-layout-sd.nix  — 可烧录 SD 镜像（根落在 NIXOS_SD，用于首启/试用）
+#
+# 默认引导沿用 base.nix 的 systemd-boot/UEFI —— 对得上绝大多数 x86 迷你主机；
+# 需要别的引导方式（如 RPi 的 extlinux）由硬件叠加层覆盖。
 { lib, ... }:
 {
   networking.hostName = "echoforge-depin";
@@ -20,12 +26,10 @@
     };
   };
 
-  # ── 引导（RPi4：extlinux，而非 systemd-boot/EFI）──
-  boot.loader.systemd-boot.enable = lib.mkForce false;
-  boot.loader.efi.canTouchEfiVariables = lib.mkForce false;
-  boot.loader.generic-extlinux-compatible.enable = true;
-
-  # ── 内存策略：ZRAM 优先，SSD Swap 兜底（swap 分区在 layout-ssd 中声明）──
+  # ── 内存策略：ZRAM 优先，Swap 兜底（swap 分区在 layout-ssd 中声明）──
+  # 注意：Cardano 全节点在链尖实测占用约 3.1 GB、账本重放峰值 3.3 GB，
+  # 且重放瓶颈是内存不是 CPU。ZRAM 只能缓解不能消除 —— 物理内存低于 8 GB
+  # 的设备不要开 mithril.enable，选型见 depin-hw-rpi4.nix 顶部的提醒。
   zramSwap = {
     enable = true;
     algorithm = "zstd";

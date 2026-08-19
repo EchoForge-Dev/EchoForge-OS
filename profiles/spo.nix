@@ -12,12 +12,19 @@
       mithril.enable = true;
       indexers.enable = false; # SPO 默认纯节点；需要索引层时置 true 重建
 
-      # 默认形态：只监听回环的观察节点，官方公共拓扑，不对外开一个端口。
+      # 默认形态：观察节点 —— 出站连对端正常同步，但防火墙不放行 3001，
+      # 外部连不进来。索引层/RPC 仍锁在 127.0.0.1（node.hostAddr）。
+      #
+      # ⚠ 不要把 node.hostAddr 设成回环来"加固"节点：那是索引层的监听地址，
+      #   节点的 P2P 绑定是 node.mithril.p2pAddr（默认 0.0.0.0）。把 P2P 绑到
+      #   回环会让出站 connect 全部 EINVAL —— 零对端、永远停在快照结束处，
+      #   而 syncProgress 仍显示 99%+，表面完全健康，极难发现。
+      #
       # 下面两段按角色二选一取消注释 —— 中继与出块绝不能同机同配置。
 
       # ── 角色 A：中继节点（Relay）────────────────────────────────
-      # 对外可达 + 放行 P2P 端口，localRoots 指向自家出块节点与兄弟中继
-      # hostAddr = "0.0.0.0";
+      # 放行入站 P2P 端口，localRoots 指向自家出块节点与兄弟中继。
+      # p2pAddr 保持默认 0.0.0.0 即可，无需改 hostAddr。
       # mithril.openFirewall = true;
       # mithril.topology.localRoots = [
       #   { address = "10.0.0.10"; port = 3001; }   # 自家出块节点（内网地址）
@@ -29,8 +36,9 @@
 
       # ── 角色 B：出块节点（Block Producer）──────────────────────
       # 先按 secrets/README.md 把 KES/VRF/OpCert 放进 sops-nix 再启用。
-      # 保持 hostAddr 内网地址、openFirewall = false：出块节点只主动外连
-      # 自有中继，入站由下面的 extraInputRules 按中继 IP 精确放行。
+      # 保持 openFirewall = false：出块节点只主动外连自有中继，
+      # 入站由下面的 extraInputRules 按中继 IP 精确放行。
+      # 多网卡机器可把 mithril.p2pAddr 收窄到内网那张卡。
       # mithril.blockProducer.enable = true;
       # mithril.topology.localRoots = [
       #   { address = "relay-1.example.com"; port = 3001; }

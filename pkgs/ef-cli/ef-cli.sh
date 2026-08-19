@@ -287,7 +287,35 @@ shelley_genesis() {
   return 1
 }
 
-# 每次调用都落在 tmpfs（XDG_RUNTIME_DIR，内存挂载）里 —— KES 私钥绝不落盘
+# 操作证书路径：先问 systemd 单元真正在用哪个，而不是猜。
+# echoforge.node.mithril.blockProducer.opCertFile 是可配置的（模块只对落在
+# /run/secrets/ 下的路径自动声明 sops 条目，指别处就不走 sops），
+# 硬编码默认值会让 CLI 与节点各说各话，然后静默误报「producer 关闭」。
+# 优先级：显式 EF_OP_CERT > 单元环境里的 EF_OP_CERT > 默认路径。
+resolve_opcert() {
+  local network="$1" from_unit
+  if [ -n "${EF_OP_CERT:-}" ]; then
+    echo "$EF_OP_CERT"
+    return 0
+  fi
+  from_unit="$(
+    systemctl show "ef-node@$network.service" -p Environment --value 2> /dev/null \
+      | tr ' ' '\n' | sed -n 's/^EF_OP_CERT=//p' | head -n1
+  )"
+  echo "${from_unit:-$DEFAULT_OP_CERT}"
+}
+
+# kes-period-info.json 是公开的证书元数据（周期区间、链上/本地计数器），
+# 不是秘密 —— 没必要和 KES 私钥挤在同一个 tmpfs 里。实测踩过：桌面会话把
+# XDG_RUNTIME_DIR 写满之后，连这个只读查询都会 ENOSPC 失败。
+query_work_dir() {
+  local dir
+  dir="$(mktemp -d -t ef-pool-query.XXXXXX)"
+  echo "$dir"
+}
+
+# 每次调用都落在 tmpfs（XDG_RUNTIME_DIR，内存挂载）里 —— KES 私钥绝不落盘。
+# 仅 rotate-kes 使用；只读查询请用 query_work_dir。
 pool_work_dir() {
   local dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/ef-pool-rotate"
   mkdir -p "$dir"
@@ -310,7 +338,7 @@ cmd_pool_status() {
 
   network="$(resolve_network "$network")"
   set_magic_args "$network"
-  opcert="${EF_OP_CERT:-$DEFAULT_OP_CERT}"
+  opcert="$(resolve_opcert "$network")"
   state="$(node_state)"
 
   if [ "$as_json" = 0 ]; then
@@ -319,31 +347,63 @@ cmd_pool_status() {
     echo "  socket  : $SOCKET"
   fi
 
+  # 单元环境里有 EF_OP_CERT 就说明 blockProducer 已启用 —— 这时证书读不到
+  # 是真故障（sops 没解开 / 属主或模式不对），和「这是台中继」是两回事，
+  # 给同一句提示会把人带偏。
+  bp_enabled=0
+  if systemctl show "ef-node@$network.service" -p Environment --value 2> /dev/null \
+    | grep -q 'EF_OP_CERT='; then
+    bp_enabled=1
+  fi
+
   if [ ! -r "$opcert" ]; then
     if [ "$as_json" = 1 ]; then
       die "operational certificate 不可读: $opcert"
     fi
-    echo "  producer: 关闭（$opcert 不可读）"
-    echo
-    echo "中继节点不需要操作证书。要转为出块节点："
-    echo "  1. profiles/spo.nix 取消注释 mithril.blockProducer.enable = true;"
-    echo "  2. 按 secrets/README.md 把 KES/VRF/OpCert 放进 sops"
-    echo "  3. nixos-rebuild switch 后重启节点"
+    if [ "$bp_enabled" = 1 ]; then
+      echo "  producer: 已启用，但证书读不到 —— $opcert"
+      echo
+      echo "节点单元声明的出块证书当前不可读。常见原因："
+      echo "  · sops 没解开：ls -l /run/secrets/pool/ ；journalctl -u sops-install-secrets"
+      echo "  · 属主/模式不对：应为 owner=cardano，node.cert 为 0440"
+      echo "  · 你不在 cardano 组：id -nG（组变更需重新登录才生效）"
+    else
+      echo "  producer: 关闭（未声明出块证书）"
+      echo
+      echo "中继节点不需要操作证书。要转为出块节点："
+      echo "  1. profiles/spo.nix 取消注释 mithril.blockProducer.enable = true;"
+      echo "  2. 按 secrets/README.md 把 KES/VRF/OpCert 放进 sops"
+      echo "  3. nixos-rebuild switch 后重启节点"
+    fi
     return 0
   fi
 
-  work="$(pool_work_dir)"
+  work="$(query_work_dir)"
   # kes-period-info 会把人类可读诊断打到 stdout，JSON 单独写文件，两者分开取
   if ! info="$(cardano-cli query kes-period-info \
     --socket-path "$SOCKET" "${MAGIC_ARGS[@]}" \
     --op-cert-file "$opcert" \
     --out-file "$work/kes-period-info.json" 2>&1)"; then
     echo "$info" >&2
-    die "查询 KES 周期失败（节点是否已完成同步？）"
+    # 不要替 cardano-cli 猜原因 —— 上面已经把它的原文打出来了。
+    # 只对一个实测踩过的坑给出定向提示：ENOSPC 未必是磁盘满。$work 落在 /tmp，
+    # 而 depin 的根就是 tmpfs（内存），那里的 ENOSPC 其实是内存不够 ——
+    # 节点在链尖能占 3 GB 以上。所以不猜，直接把挂载点用量摆出来。
+    case "$info" in
+      *"No space left on device"*)
+        echo "  写入 $work 失败：ENOSPC。该挂载点当前用量：" >&2
+        df -h "$work" >&2 || true
+        die "先腾出空间再重试"
+        ;;
+      *)
+        die "查询 KES 周期失败，原因见上方 cardano-cli 输出"
+        ;;
+    esac
   fi
 
   if [ "$as_json" = 1 ]; then
     cat "$work/kes-period-info.json"
+    rm -rf "$work"
     return 0
   fi
 
@@ -353,6 +413,7 @@ cmd_pool_status() {
     "  剩余    : \((.qKesEndKesInterval // 0) - (.qKesCurrentKesPeriod // 0)) 个周期，到期 \(.qKesKesKeyExpiry // "?")",
     "  计数器  : 链上 \(.qKesNodeStateOperationalCertificateNumber // "?") / 本地 \(.qKesOnDiskOperationalCertificateNumber // "?")"
   ' "$work/kes-period-info.json"
+  rm -rf "$work"
   echo
   echo "$info"
 }

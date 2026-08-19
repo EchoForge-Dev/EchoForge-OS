@@ -34,7 +34,7 @@ bit-for-bit, from this repository.
 | `echoforge-desktop` | Hobbyist · staking & browsing | GUI light desktop | Read-only desktop with Lace + Ledger; the node is entirely absent — zero overhead |
 | `echoforge-dev` | Smart-contract developer | GUI/CLI sandbox | On-demand local devnet (~200 MB, second-level blocks) + Aiken / GHC / Ogmios / Kupo + Zed |
 | `echoforge-spo` | Power user · protocol & full node | GUI/TUI hybrid | Mithril snapshot sync for preview / preprod / mainnet, TUI monitoring, optional block producer |
-| `echoforge-depin` | DePIN edge node | Headless · RPi4 | aarch64, tmpfs root, ZRAM, hardware watchdog — survives power loss unattended |
+| `echoforge-depin` | DePIN edge node | Headless · x86_64 mini-PC (RPi4 variant) | tmpfs root, ZRAM, hardware watchdog — survives power loss unattended |
 
 ## Quick start
 
@@ -48,15 +48,16 @@ nix build .#nixosConfigurations.echoforge-dev.config.system.build.toplevel
 # 2. Activate it on the target machine
 sudo nixos-rebuild switch --flake .#echoforge-dev
 
-# 3. depin: flashable RPi4 SD image (.img.zst — root partition auto-expands on first boot)
+# 3. depin on a Raspberry Pi 4: flashable SD image
+#    (.img.zst — root partition auto-expands on first boot)
 nix build .#packages.aarch64-linux.depin-sd-image
 ```
 
 > **Disk conventions** — partition by label at install time, no code changes needed:
 > `echoforge-root` (ext4) + `EFOS-BOOT` (vfat) for the desktop-class profiles;
-> the depin SSD deployment (`echoforge-depin`) expects `echoforge-nix`, `echoforge-data`,
-> optional `echoforge-swap` and `FIRMWARE`; the SD-image form (`echoforge-depin-sd`)
-> needs no manual partitioning at all.
+> the depin SSD deployment (`echoforge-depin`, `echoforge-depin-rpi4`) expects
+> `echoforge-nix`, `echoforge-data`, optional `echoforge-swap` and `FIRMWARE`;
+> the SD-image form (`echoforge-depin-rpi4-sd`) needs no manual partitioning at all.
 
 To bump an upstream binary, edit the `version` in `pkgs/cardano/*.nix` and run
 `./scripts/prefetch-hashes.sh` to re-verify and fill in the SRI hashes.
@@ -96,9 +97,11 @@ preview template: genesis hashes replaced, checkpoints dropped, every hard fork 
   `flake.nix` + `nixos-rebuild`. No runtime `apt`/`pacman`, no hand-editing `/etc`.
 - **Zero secret leakage** — sensitive material exists only as sops-nix Age ciphertext,
   decrypted to the in-memory mount `/run/secrets/` (see [secrets/README.md](secrets/README.md)).
-- **Network isolation** — node / Ogmios / Kupo bind to `127.0.0.1` and a **build-time
-  assertion** guards it; the firewall denies all inbound by default, with SSH (key-only)
-  opened solely on `spo` / `depin`.
+- **Network isolation** — the RPC surface (Ogmios, Kupo, and the devnet node) binds to
+  `127.0.0.1`, guarded by a **build-time assertion**. The full node's P2P socket binds
+  `0.0.0.0` because outbound peering requires it, and reachability is decided by the
+  firewall — which denies all inbound by default, opening SSH (key-only) on `spo` / `depin`
+  and the P2P port only when a relay explicitly asks for it.
 
 <img src="docs/figures/03-security.png" alt="Security posture matrix — five hard rules enforced on every profile, open-port counts per profile, and the per-safeguard comparison table">
 
@@ -115,21 +118,20 @@ preview template: genesis hashes replaced, checkpoints dropped, every hard fork 
 
 ## SPO block production
 
-Out of the box the `spo` profile is a loopback-only observer: official public topology, no
-inbound port. Two commented role blocks in `profiles/spo.nix` turn it into a real pool —
-pick exactly one per machine.
+Out of the box the `spo` profile is an observer: it peers outbound over the public topology
+and syncs, but no inbound port is opened and the RPC surface stays on loopback. Two commented
+role blocks in `profiles/spo.nix` turn it into a real pool — pick exactly one per machine.
 
 **Relay** — reachable, public port open, `localRoots` pointing at your own producer and
 sibling relays:
 
 ```nix
-hostAddr = "0.0.0.0";
 mithril.openFirewall = true;
 mithril.topology.localRoots = [ { address = "10.0.0.10"; port = 3001; } ];
 mithril.topology.bootstrapPeers = [ { address = "backbone.cardano.iog.io"; port = 3001; } ];
 ```
 
-**Block producer** — keeps its loopback/private address and stays out of `allowedTCPPorts`;
+**Block producer** — stays out of `allowedTCPPorts`, so nothing reaches it from outside;
 `localRoots` lists only your own relays, and the generated topology pins
 `useLedgerAfterSlot = -1` with `bootstrapPeers = null`, so the producer never touches public
 peer discovery:
@@ -143,8 +145,16 @@ With `blockProducer.enable`, the `ef-node@` unit appends `--shelley-kes-key` /
 `--shelley-vrf-key` / `--shelley-operational-certificate`, sourced from sops
 (`secrets/secrets.yaml` → `/run/secrets/pool/`). Missing secrets fail the build — you cannot
 ship a producer without its keys. Build-time guards also catch `openFirewall` with a loopback
-`hostAddr` (assertion), and warn when a producer runs public topology, opens its port, or sets
+`p2pAddr` (assertion), and warn when a producer runs public topology, opens its port, or sets
 bootstrap peers.
+
+> **Two addresses, and mixing them up is expensive.** `node.mithril.p2pAddr` (default
+> `0.0.0.0`) is what the node binds for peer-to-peer; `node.hostAddr` (default `127.0.0.1`)
+> is where the indexer layer and RPC listen. `p2pAddr` defaulting to `0.0.0.0` does not
+> expose anything — inbound reachability is the firewall's job — but `--host-addr` also
+> fixes the *source* address of outbound connections, so binding it to loopback makes every
+> outbound `connect` return `EINVAL`. The node then sits at zero peers, frozen at the block
+> the snapshot ended on, while `syncProgress` still reads 99%+ and everything looks healthy.
 
 Day-to-day operation runs through `ef-cli pool`. `cardano-cli` is on `PATH` on any
 node-enabled profile, with `CARDANO_NODE_SOCKET_PATH` pre-pointed at
@@ -171,7 +181,7 @@ delegation certificates, metadata hosting, and the 500 ADA deposit transaction �
 
 ```
 flake.nix                  # four profile build targets + package outputs
-├── profiles/              # desktop / dev / spo / depin (+ depin disk layouts)
+├── profiles/              # desktop / dev / spo / depin (+ depin hardware & disk layers)
 ├── modules/
 │   ├── options.nix        # the echoforge.* option namespace
 │   ├── common/            # immutable base · security policy · sops-nix secrets
@@ -192,10 +202,14 @@ flake.nix                  # four profile build targets + package outputs
    same-origin builds, compile from source via haskell.nix and override `cardano-node-bin`
    in the overlay.
 2. **Real-hardware validation** — `dev` and `spo` have been run on an x86_64 VPS
-   (devnet and Mithril-synced preview, Ogmios/Kupo on top). The `echoforge-depin-sd` image
-   (sd-image-aarch64 + nixos-hardware RPi4) has not yet been flashed and verified on a
+   (devnet and Mithril-synced preview, Ogmios/Kupo on top). The `echoforge-depin-rpi4-sd`
+   image (sd-image-aarch64 + nixos-hardware RPi4) has not yet been flashed and verified on a
    physical RPi4.
-3. **Devnet chain is disposable** — the devnet genesis is generated by the pinned
+3. **RAM is the binding constraint for a full node** — measured at the tip: ~3.1 GB resident,
+   ~3.3 GB peak during ledger replay, and replay is memory-bound rather than CPU-bound. A
+   4 GB board cannot hold a node; 8 GB covers preview. `depin` therefore targets an x86_64
+   mini-PC by default, with the RPi4 as a hardware overlay.
+4. **Devnet chain is disposable** — the devnet genesis is generated by the pinned
    `cardano-cli`, and its parameter set moves with the binary. Bumping `cardano-node`
    therefore regenerates the genesis and discards the local chain and its Kupo index
    (announced on the next `ef-cli node start --mode devnet`). Nothing you need to keep

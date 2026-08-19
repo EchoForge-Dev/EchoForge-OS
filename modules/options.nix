@@ -58,8 +58,14 @@
         type = lib.types.str;
         default = "127.0.0.1";
         description = ''
-          节点 / RPC 监听地址。安全规范默认锁定 127.0.0.1，
-          仅 SPO 中继等明确场景可显式改为对外地址。
+          **索引层与 RPC 的监听地址**（Ogmios / Kupo，以及 devnet 私链节点）。
+          安全规范默认锁定 127.0.0.1，common/security.nix 有构建期断言把关。
+
+          注意：这里**不再**决定 mithril 全节点的 P2P 绑定地址 ——
+          那是 node.mithril.p2pAddr。两者混用会造成一个很隐蔽的故障：
+          把 P2P 绑到回环后，出站 connect 的源地址也是回环，
+          去连任何公网对端都直接 EINVAL，节点零对端、永远停在快照结束处，
+          而 syncProgress 仍显示 99%+，表面完全健康。
         '';
       };
 
@@ -87,13 +93,31 @@
           description = "节点 P2P 监听端口（中继节点需与拓扑中公布的端口一致）。";
         };
 
+        p2pAddr = lib.mkOption {
+          type = lib.types.str;
+          default = "0.0.0.0";
+          description = ''
+            全节点的 P2P 绑定地址（cardano-node --host-addr）。
+
+            默认 0.0.0.0，**这不等于对外暴露**：入站是否可达由防火墙决定，
+            3001 不在 allowedTCPPorts 里外部就进不来（见 openFirewall）。
+            而出站连接不受入站防火墙限制 —— 节点必须绑一个可路由地址
+            才连得上对端，绑 127.0.0.1 会让所有出站 connect 返回 EINVAL。
+
+            只有在多网卡机器上想把 P2P 限定到某张网卡时才需要改动。
+          '';
+        };
+
         openFirewall = lib.mkOption {
           type = lib.types.bool;
           default = false;
           description = ''
-            在防火墙放行 `port`。中继节点必须开启，同时把 `node.hostAddr`
-            改为对外地址；出块节点不应开启 —— 它只主动外连自有中继，
-            入站应由 networking.firewall.extraInputRules 按中继 IP 精确放行。
+            在防火墙放行 `port`，让外部连得进来。中继节点必须开启；
+            出块节点不应开启 —— 它只主动外连自有中继，入站应由
+            networking.firewall.extraInputRules 按中继 IP 精确放行。
+
+            这只管入站。节点绑哪个地址是 `p2pAddr`（默认 0.0.0.0 即可，
+            不要改 `node.hostAddr` —— 那是索引层的监听地址）。
           '';
         };
 
@@ -193,9 +217,12 @@
 
       led.enable = lib.mkOption {
         type = lib.types.bool;
-        default = config.echoforge.profile == "depin";
-        defaultText = lib.literalExpression ''config.echoforge.profile == "depin"'';
-        description = "RPi4 板载 ACT LED 映射节点状态（2 s 呼吸 = 运行，250 ms = Mithril 快照恢复中，mmc0 = 停止）。仅 depin。";
+        default = false;
+        description = ''
+          板载 ACT LED 映射节点状态（2 s 呼吸 = 运行，250 ms = Mithril 快照恢复中，
+          mmc0 = 停止）。这是硬件特性而非 Profile 特性 —— 由硬件叠加层开启
+          （见 profiles/depin-hw-rpi4.nix），x86 迷你主机上没有这块 LED。
+        '';
       };
     };
   };
