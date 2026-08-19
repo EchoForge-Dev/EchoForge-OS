@@ -9,25 +9,28 @@
   zstd,
 }:
 let
-  version = "10.1.4";
+  version = "11.0.1";
 
   # Armada Alliance 压缩包顶层目录名（含 GHC 版本后缀）
-  armadaDir = "cardano-10_1_4-aarch64-static-musl-ghc_966";
+  armadaDir = "cardano-11_0_1-aarch64-static-musl-ghc_9122";
 
   srcs = {
     x86_64-linux = {
       src = fetchurl {
-        url = "https://github.com/IntersectMBO/cardano-node/releases/download/${version}/cardano-node-${version}-linux.tar.gz";
-        hash = "sha256-r7gvMCWkwbhFzgjC64nI3IaS6DJvR45Oo3zh4gY/4/Y=";
+        # 11.0.0 起上游改了资产命名：-linux.tar.gz → -linux-amd64.tar.gz
+        url = "https://github.com/IntersectMBO/cardano-node/releases/download/${version}/cardano-node-${version}-linux-amd64.tar.gz";
+        hash = "sha256-QOiKVDVkJRM4xIiO95/eUdIwbBi0isMIyeqzIg46E/A=";
       };
       binDir = "bin";
+      shareDir = "share";
     };
     aarch64-linux = {
       src = fetchurl {
         url = "https://github.com/armada-alliance/cardano-node-binaries/raw/main/static-binaries/${armadaDir}.tar.zst";
-        hash = "sha256-g2gAaD7FV8Olkk6awZ3mdG30U5+c2olLOhkADnQ377E=";
+        hash = "sha256-DWciGdCiVtNiMk0oFVQ6miauRT09zsEKzvWkYo3BTCA=";
       };
       binDir = armadaDir;
+      shareDir = "${armadaDir}/share";
     };
   };
 
@@ -50,6 +53,14 @@ stdenvNoCC.mkDerivation {
     runHook preInstall
     mkdir -p $out/bin
     install -m755 ${perArch.binDir}/cardano-node ${perArch.binDir}/cardano-cli $out/bin/
+
+    # 上游发布件自带各网络的 config/topology/genesis。用它们而不是运行期从
+    # book.world.dev.cardano.org 抓「最新」—— 网页配置永远跟着最新节点走，
+    # 和被钉住的二进制迟早对不上（10.1.4 就死在解析不了新版的
+    # "PrometheusSimple ..." 追踪后端上）。同包发布 = 版本天然一致，
+    # 而且节点启动不再需要联网。
+    mkdir -p $out/share/cardano
+    cp -r ${perArch.shareDir}/* $out/share/cardano/
     runHook postInstall
   '';
 

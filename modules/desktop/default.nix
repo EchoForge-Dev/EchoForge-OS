@@ -10,6 +10,7 @@ let
 
   # tuigreet 大门（EFDS 单色主题、motto 问候、● 密码掩码；04-11 问候语换成 GENESIS DAY）。
   # 包装脚本以 greeter 用户在登录前运行：两次 date 后 exec 进 tuigreet，无网络、无 secrets。
+  # 参数已逐一对照 tuigreet 0.9.1 的 man page（--greeting/--time-format/--theme/--asterisks-char/--greet-align/--width）。
   # 主题色是 ANSI 颜色名，落到 VT 调色板（modules/common/console.nix）上：white=#ffffff，darkgray=#404040。
   greeter = pkgs.writeShellScript "ef-greeter" ''
     d=$(${pkgs.coreutils}/bin/date +%m-%d)

@@ -289,7 +289,7 @@ egg_dispatch() {
 }
 
 # ── 节点生命周期的回声语义（由 ef-cli.sh 的 node 子命令调用）────────────────
-# 等待第一声回声：节点开口 = socket 出现（最多 30 s）。
+# 等待第一声回声：节点开口 = socket 出现（最多 60 s）。
 # RuntimeDirectoryPreserve=true 会留下上一轮的 socket 文件，所以在 start 之前先记下它的 inode+mtime，
 # 只有"新的" socket 才算回声；单元中途失败则立刻说明，不空等。
 socket_id() { # 仅在 Linux（systemctl 存在）路径上调用；stat 来自 GNU coreutils
@@ -310,7 +310,9 @@ wait_for_echo() { # $1 = unit（排障提示用）
     return 0
   fi
   printf '    ◐ waiting for first echo '
-  while [ "$i" -lt 60 ]; do
+  # 预算 120 × 0.5s = 60s。首次启动要现生成创世（create-testnet-data + byron
+  # + 四个哈希），30s 顶不住；mithril 恢复完再开 socket 也同理。
+  while [ "$i" -lt 120 ]; do
     now="$(socket_id)"
     if [ -n "$now" ] && [ "$now" != "$EF_SOCK_BEFORE" ]; then
       printf '\n    ● echo received  %s\n' "$SOCKET"
@@ -319,13 +321,19 @@ wait_for_echo() { # $1 = unit（排障提示用）
     st="$(systemctl is-active "$1" 2> /dev/null || true)"
     if [ "$st" != "active" ] && [ "$st" != "activating" ]; then
       printf '\n    ◌ %s is %s — journalctl -u %s\n' "$1" "${st:-gone}" "$1"
-      return 0
+      # 2 = 单元真的死了（或在崩溃重启里打转）
+      return 2
     fi
     sleep 0.5
     i=$((i + 1))
     printf '.'
   done
-  printf '\n    ◌ no echo yet (still starting?) — journalctl -fu %s\n' "$1"
+  printf '\n    ◌ no echo yet — %s 仍在运行，可能正在重放账本\n' "$1"
+  printf '       跟进: journalctl -fu %s\n' "$1"
+  # 1 = 超时但单元还活着。Mithril 快照没带账本状态时，节点要从创世重放
+  # （preview 实测约 50 分钟）才会开 socket —— 这属于正常等待，绝不能当失败杀掉。
+  # 0 从来不返回：调用方靠返回码区分「成功 / 还在忙 / 已死」。
+  return 1
 }
 
 # 同步球：节点追赶链尖时 4 条波带逐条点亮（Ogmios /health，仅环回，仅手动 status）

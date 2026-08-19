@@ -134,12 +134,6 @@ in
 
     networking.firewall.allowedTCPPorts = lib.mkIf mithrilCfg.openFirewall [ mithrilCfg.port ];
 
-    users.users.cardano = {
-      isSystemUser = true;
-      group = "cardano";
-    };
-    users.groups.cardano = { };
-
     # 快照同步（oneshot，可重入：数据库已存在时直接跳过）
     systemd.services."ef-mithril-sync@" = {
       description = "EchoForge Mithril snapshot sync (%i)";
@@ -162,6 +156,10 @@ in
       environment = {
         EF_HOST = cfg.node.hostAddr;
         EF_PORT = toString mithrilCfg.port;
+        # 网络配置随二进制同包发布（share/cardano/<network>/），避免运行期抓
+        # 「最新」配置与被钉住的节点版本漂移 —— 10.1.4 配 11.x 的配置会死在
+        # Unknown config: "PrometheusSimple suffix ..."。顺带去掉启动时的网络依赖。
+        EF_NODE_SHARE = "${pkgs.cardano-node-bin}/share/cardano";
       }
       # 自有拓扑：ef-node-run 见到 EF_TOPOLOGY 就不再拉官方公共 topology.json
       // lib.optionalAttrs usePrivateTopology {

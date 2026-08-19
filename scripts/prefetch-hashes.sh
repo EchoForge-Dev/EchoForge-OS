@@ -5,8 +5,8 @@ set -euo pipefail
 
 urls=(
   # cardano-node（x86_64 官方 / aarch64 Armada Alliance）
-  "https://github.com/IntersectMBO/cardano-node/releases/download/10.1.4/cardano-node-10.1.4-linux.tar.gz"
-  "https://github.com/armada-alliance/cardano-node-binaries/raw/main/static-binaries/cardano-10_1_4-aarch64-static-musl-ghc_966.tar.zst"
+  "https://github.com/IntersectMBO/cardano-node/releases/download/11.0.1/cardano-node-11.0.1-linux-amd64.tar.gz"
+  "https://github.com/armada-alliance/cardano-node-binaries/raw/main/static-binaries/cardano-11_0_1-aarch64-static-musl-ghc_9122.tar.zst"
   # ogmios
   "https://github.com/CardanoSolutions/ogmios/releases/download/v6.14.0/ogmios-v6.14.0-x86_64-linux.zip"
   "https://github.com/CardanoSolutions/ogmios/releases/download/v6.14.0/ogmios-v6.14.0-aarch64-linux.zip"

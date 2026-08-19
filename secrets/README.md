@@ -19,6 +19,24 @@ nix develop -c sops secrets/secrets.yaml
 `secrets.yaml`（加密后）可以提交进仓库；任何 `*.skey`、明文密钥文件已被
 `.gitignore` 拦截，但拦截不是许可 —— 明文密钥根本不应该出现在这个目录里。
 
+## 工作站侧（macOS）易踩的坑
+
+- **收件人配置**：`sops` 需要仓库根目录的 `.sops.yaml` 才知道用谁的公钥加密。
+  个人 age 密钥用 `nix shell nixpkgs#age -c age-keygen -o ~/.config/sops/age/keys.txt`
+  生成，把打印的公钥填进 `.sops.yaml`；主机上线后再按下节追加主机公钥并
+  `sops updatekeys secrets/secrets.yaml`。
+- **私钥位置**：macOS 上 sops 默认去 `~/Library/Application Support/sops/age/keys.txt` 找私钥，
+  而不是 Linux 的 `~/.config/sops/age/keys.txt`。二选一：把密钥放到前者，或在 shell 里
+  `export SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt"`。报错
+  `identity did not match any of the recipients` 通常就是这个原因。
+- 默认编辑器是 vim；不熟悉的话 `export EDITOR=nano`。
+
+## 主机密钥（让目标机在运行期能自己解密）
+
+`modules/common/secrets.nix` 让主机用自己的 SSH ed25519 密钥解密。装机时预生成该密钥、
+用 `ssh-to-age` 转成 age 公钥、追加进 `.sops.yaml`，再 `sops updatekeys secrets/secrets.yaml`
+把已有密文重新加密给这台主机 —— 顺序不能颠倒：先 updatekeys 再装机，机器上线即可解密。
+
 ## SPO 出块密钥（blockProducer）
 
 启用 `echoforge.node.mithril.blockProducer.enable = true;` 后，

@@ -65,7 +65,7 @@ start_indexers_if_present() {
 }
 
 cmd_node_start() {
-  local mode="" network="preview"
+  local mode="" network="preview" rc=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --mode) mode="${2:-}"; shift 2 ;;
@@ -81,9 +81,19 @@ cmd_node_start() {
       echo "==> Starting local devnet (~200MB, second-level blocks)"
       snapshot_socket ef-devnet.service
       sudo systemctl start ef-devnet.service
-      wait_for_echo ef-devnet.service
+      # 返回码：0 = socket 已就绪；1 = 还在忙（单元仍活着）；2 = 单元已死
+      rc=0; wait_for_echo ef-devnet.service || rc=$?
+      if [ "$rc" = 2 ]; then
+        # 单元真的死了：别再拉索引层（只会跟着空转重启），也别谎报成功
+        sudo systemctl stop ef-devnet.service 2> /dev/null || true
+        die "devnet 未能启动，已停止以免重启风暴；日志: journalctl -u ef-devnet -n 50"
+      fi
       start_indexers_if_present
-      echo "==> Devnet up. Socket: /run/echoforge/node.socket"
+      if [ "$rc" = 1 ]; then
+        echo "==> Devnet 仍在启动中（单元存活）。socket 就绪后即可使用。"
+      else
+        echo "==> Devnet up. Socket: /run/echoforge/node.socket"
+      fi
       ;;
     mithril)
       case " $NETWORKS " in
@@ -98,9 +108,21 @@ cmd_node_start() {
       echo "==> Starting $network node"
       snapshot_socket "ef-node@$network.service"
       sudo systemctl start "ef-node@$network.service"
-      wait_for_echo "ef-node@$network.service"
-      start_indexers_if_present
-      echo "==> Node up. Socket: /run/echoforge/node.socket"
+      rc=0; wait_for_echo "ef-node@$network.service" || rc=$?
+      if [ "$rc" = 2 ]; then
+        sudo systemctl stop "ef-node@$network.service" 2> /dev/null || true
+        die "$network 节点未能启动，已停止；日志: journalctl -u ef-node@$network -n 50"
+      fi
+      if [ "$rc" = 1 ]; then
+        # 快照不含账本状态时，节点要从创世重放才开 socket —— 让它继续跑，
+        # 索引层等 socket 出现后再拉（它们连不上会自行重启等待）。
+        echo "==> $network 节点仍在启动中：Mithril 快照不含账本状态，正在从创世重放。"
+        echo "    进度: journalctl -fu ef-node@$network | grep LedgerReplay"
+        echo "    socket 就绪后再执行: ef-cli node start --mode mithril --network $network"
+      else
+        start_indexers_if_present
+        echo "==> Node up. Socket: /run/echoforge/node.socket"
+      fi
       ;;
     *)
       die "--mode must be devnet or mithril"
