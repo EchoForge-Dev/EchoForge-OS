@@ -42,10 +42,10 @@
     RebootWatchdogSec = "2min";
   };
   boot.kernelParams = [ "panic=10" ];
-  services.journald.extraConfig = ''
-    Storage=volatile
-    RuntimeMaxUse=64M
-  '';
+  services.journald.settings.Journal = {
+    Storage = "volatile";
+    RuntimeMaxUse = "64M";
+  };
 
   # 主机密钥固定落在持久化数据目录（tmpfs 根下 /etc/ssh 不持久），
   # 同时保证 sops-nix (age.sshKeyPaths) 跨重启可解密

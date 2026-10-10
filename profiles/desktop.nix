@@ -17,7 +17,5 @@
 
   # 极致安全的只读桌面：无 SSH 入口、日志限量
   services.openssh.enable = false;
-  services.journald.extraConfig = ''
-    SystemMaxUse=200M
-  '';
+  services.journald.settings.Journal.SystemMaxUse = "200M";
 }
