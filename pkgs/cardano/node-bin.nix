@@ -9,17 +9,17 @@
   zstd,
 }:
 let
-  version = "11.0.1";
+  version = "11.1.3";
 
   # Armada Alliance 压缩包顶层目录名（含 GHC 版本后缀）
-  armadaDir = "cardano-11_0_1-aarch64-static-musl-ghc_9122";
+  armadaDir = "cardano-11_1_3-aarch64-static-musl-ghc_9122";
 
   srcs = {
     x86_64-linux = {
       src = fetchurl {
         # 11.0.0 起上游改了资产命名：-linux.tar.gz → -linux-amd64.tar.gz
         url = "https://github.com/IntersectMBO/cardano-node/releases/download/${version}/cardano-node-${version}-linux-amd64.tar.gz";
-        hash = "sha256-QOiKVDVkJRM4xIiO95/eUdIwbBi0isMIyeqzIg46E/A=";
+        hash = "sha256-Uw+5mYb73MxG+e4N2GyrsTk7AV/qyRc8tzHYn6dINl8=";
       };
       binDir = "bin";
       shareDir = "share";
@@ -27,7 +27,7 @@ let
     aarch64-linux = {
       src = fetchurl {
         url = "https://github.com/armada-alliance/cardano-node-binaries/raw/main/static-binaries/${armadaDir}.tar.zst";
-        hash = "sha256-DWciGdCiVtNiMk0oFVQ6miauRT09zsEKzvWkYo3BTCA=";
+        hash = "sha256-4nVzBB8+U0vv9Cvdoq600jBvDImPHtgcot/oCD5rZgA=";
       };
       binDir = armadaDir;
       shareDir = "${armadaDir}/share";
