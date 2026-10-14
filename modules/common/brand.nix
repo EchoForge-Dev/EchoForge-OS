@@ -7,7 +7,7 @@
   genesisEpoch = 1775865600; # 2026-04-11T00:00:00Z
   epochLength = 432000; # 5 天，同 mainnet —— ef-cli genesis 用它把成立日当 epoch 0
   home = [
-    "https://echoforgellc.tech"
+    "https://www.echoforgeef.com"
     "https://stickmancharles.com"
   ];
   family = [
@@ -20,7 +20,7 @@
   ];
   # 每个 ef-* 单元的 [Unit] Documentation=（systemctl status 多一行 Docs:）
   unitDocumentation = [
-    "https://echoforgellc.tech"
+    "https://www.echoforgeef.com"
     "https://github.com/EchoForge-Dev/EchoForge-OS"
     "file:/etc/echoforge/genesis.json"
   ];

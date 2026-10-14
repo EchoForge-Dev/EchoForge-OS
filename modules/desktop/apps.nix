@@ -28,12 +28,12 @@ in
     programs.chromium = {
       enable = true;
       extraOpts = {
-        HomepageLocation = "https://echoforgellc.tech";
+        HomepageLocation = "https://www.echoforgeef.com";
         HomepageIsNewTabPage = false;
-        NewTabPageLocation = "https://echoforgellc.tech";
+        NewTabPageLocation = "https://www.echoforgeef.com";
         RestoreOnStartup = 4; # 4 = 打开固定网址列表
         RestoreOnStartupURLs = [
-          "https://echoforgellc.tech"
+          "https://www.echoforgeef.com"
           "https://stickmancharles.com"
         ];
         # 1. Lace Wallet 开箱即用

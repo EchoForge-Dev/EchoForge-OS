@@ -112,7 +112,7 @@ preview template: genesis hashes replaced, checkpoints dropped, every hard fork 
 | **Lace Wallet** | Forced install via Chrome enterprise policy `ExtensionInstallForcelist` — works out of the box |
 | **Ledger** | `hardware.ledger.enable = true` + udev rules — plug and use |
 | **Zed Editor** | Preinstalled with the EFDS dark high-contrast theme + Aiken / Haskell / Nix extensions |
-| **Google Chrome** | Homepage & new-tab policy locked to echoforgellc.tech / stickmancharles.com |
+| **Google Chrome** | Homepage & new-tab policy locked to www.echoforgeef.com / stickmancharles.com |
 
 <img src="docs/figures/04-features.png" alt="Capability matrix — desktop and wallet apps, node subsystems and ops tooling across the four profiles">
 
