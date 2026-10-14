@@ -117,7 +117,7 @@ cmd_version() {
     fi
   done
   printf '  %s\n' "${legend%  }"
-  echo '  一切为简 / All for Simple · echoforgellc.tech'
+  echo '  一切为简 / All for Simple · echoforgeef.com'
   anniversary_footer
 }
 
@@ -238,7 +238,7 @@ cmd_stickman() {
   else
     printf '     %s      %s\n' "$head" "$l1"
     printf '    /|\\     %s\n' 'stickmancharles.com'
-    printf '    / \\     %s\n' 'echoforgellc.tech'
+    printf '    / \\     %s\n' 'echoforgeef.com'
   fi
 }
 
