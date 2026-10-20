@@ -8,11 +8,11 @@ let
   perArch = {
     x86_64-linux = {
       suffix = "linux-x64";
-      hash = "sha256-brdF/fEk+tPZPOZFDEXU+29ri67YrsEMg8EQMb7HDsg=";
+      hash = "sha256-q6TWdcLBz2K/FnSKnUSOGhW/QQoUIwbmVI38w47olQA=";
     };
     aarch64-linux = {
       suffix = "linux-arm64";
-      hash = "sha256-NbqHGgylSMc9bcTm/JHnsKSIP8TLP/6oA+vsaUsbrC0=";
+      hash = "sha256-Ihb0Dh1uRuBIZt9rLnyhvl33veMstPQwXve3Tv1DtF8=";
     };
   };
   asset =
@@ -21,7 +21,7 @@ let
 in
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "mithril-client-bin";
-  version = "2630.1-hotfix";
+  version = "2642.0";
 
   src = fetchurl {
     url = "https://github.com/input-output-hk/mithril/releases/download/${finalAttrs.version}/mithril-${finalAttrs.version}-${asset.suffix}.tar.gz";
