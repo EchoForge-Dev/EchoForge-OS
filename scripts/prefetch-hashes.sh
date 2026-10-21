@@ -14,8 +14,8 @@ urls=(
   "https://github.com/CardanoSolutions/kupo/releases/download/v2.12/kupo-v2.12.0-x86_64-linux.zip"
   "https://github.com/CardanoSolutions/kupo/releases/download/v2.12/kupo-v2.12.0-aarch64-linux.zip"
   # mithril
-  "https://github.com/input-output-hk/mithril/releases/download/2630.1-hotfix/mithril-2630.1-hotfix-linux-x64.tar.gz"
-  "https://github.com/input-output-hk/mithril/releases/download/2630.1-hotfix/mithril-2630.1-hotfix-linux-arm64.tar.gz"
+  "https://github.com/input-output-hk/mithril/releases/download/2642.0/mithril-2642.0-linux-x64.tar.gz"
+  "https://github.com/input-output-hk/mithril/releases/download/2642.0/mithril-2642.0-linux-arm64.tar.gz"
 )
 
 for url in "${urls[@]}"; do
