@@ -30,6 +30,10 @@ in
 
   config = lib.mkIf cfg.gui.enable {
     programs.hyprland.enable = true;
+    # 关掉 withUWSM 时 nixpkgs 会另编一份不带 UWSM 的 Hyprland（cache.nixos.org 没有，只能本地编译），
+    # 与 home-manager 用的 pkgs.hyprland 也不是同一份。打开后两边共用缓存里的默认构建。
+    # greetd 仍直接启动 Hyprland，不经 UWSM；hyprland-uwsm 会话只是多出来备用。
+    programs.hyprland.withUWSM = true;
 
     services.greetd = {
       enable = true;
