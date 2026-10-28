@@ -36,6 +36,17 @@ bit-for-bit, from this repository.
 | `echoforge-spo` | Power user · protocol & full node | GUI/TUI hybrid | Mithril snapshot sync for preview / preprod / mainnet, TUI monitoring, optional block producer |
 | `echoforge-depin` | DePIN edge node | Headless · x86_64 mini-PC (RPi4 variant) | tmpfs root, ZRAM, hardware watchdog — survives power loss unattended |
 
+## Screenshots
+
+`echoforge-dev` running in an aarch64 QEMU VM. One `ef-cli` command brings the local devnet
+up, and the Waybar breathing light (top right) turns white while a node runs. Below that: the
+greetd login gate, and Zed on first launch.
+
+<img src="docs/screenshots/dev-devnet.png" alt="Devnet — ef-cli node start --mode devnet brings the local chain up with Ogmios and Kupo on 127.0.0.1, ef-cli node status confirms it, and the Waybar node light is lit white">
+
+<img src="docs/screenshots/dev-login.png" width="49%" alt="Login — the greetd gate: Authenticate into echoforge-dev, ECHOFORGE OS · ALL FOR SIMPLE">
+<img src="docs/screenshots/dev-zed.png" width="49%" alt="Zed — the editor on first launch, preinstalled on echoforge-dev">
+
 ## Quick start
 
 ```bash
@@ -204,7 +215,7 @@ flake.nix                  # four profile build targets + package outputs
 ├── pkgs/                  # ef-cli + static Cardano binary packaging
 ├── scripts/               # node runners + hash-prefetch tooling
 ├── secrets/               # sops-nix Age templates (decrypt to /run/secrets)
-└── docs/                  # engineering figures + brand assets
+└── docs/                  # engineering figures, screenshots + brand assets
 ```
 
 ## Known limitations
