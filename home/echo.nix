@@ -130,94 +130,124 @@ in
   };
 
   # ── Hyprland：单色工程感（EFDS：白描边、深灰非活动、8px 圆角）──
-  wayland.windowManager.hyprland = {
-    enable = true;
-    configType = "hyprlang";
-    settings = {
-      monitor = [ ",preferred,auto,1" ];
-      exec-once = [ "waybar" ];
-
-      general = {
-        gaps_in = 8;
-        gaps_out = 16;
-        border_size = 1;
-        "col.active_border" = "rgba(ffffffff)";
-        "col.inactive_border" = "rgba(262626ff)";
-      };
-
-      decoration = {
-        rounding = 8;
-      };
-
-      misc = {
-        disable_hyprland_logo = true;
-        background_color = "0x000000";
-      };
-
-      "$mod" = "SUPER";
-      bind = [
-        "$mod, Return, exec, alacritty"
-        "$mod, D, exec, fuzzel"
-        "$mod, B, exec, google-chrome-stable"
-        "$mod, E, exec, zeditor"
-        "$mod, Q, killactive"
-        "$mod SHIFT, M, exit"
-        "$mod, F, fullscreen"
-        "$mod, H, movefocus, l"
-        "$mod, L, movefocus, r"
-        "$mod, K, movefocus, u"
-        "$mod, J, movefocus, d"
-        "$mod, 1, workspace, 1"
-        "$mod, 2, workspace, 2"
-        "$mod, 3, workspace, 3"
-        "$mod, 4, workspace, 4"
-        "$mod SHIFT, 1, movetoworkspace, 1"
-        "$mod SHIFT, 2, movetoworkspace, 2"
-        "$mod SHIFT, 3, movetoworkspace, 3"
-        "$mod SHIFT, 4, movetoworkspace, 4"
-      ]
-      ++ lib.optionals eggs [
-        # SUPER+` → About This Forge（special workspace，首次打开为空时才拉起一个临时终端）
-        "$mod, grave, togglespecialworkspace, forge"
-        # SUPER+SHIFT+F 进入静默 submap，接着拼 O-R-G-E（见 submaps）
-        "$mod SHIFT, F, submap, forge"
+  # Hyprland 0.57 删除了 hyprlang（hyprland.conf），只读 Lua（hyprland.lua）。
+  # Home Manager 把 settings 的每个键渲染成一次 hl.<键>(…) 调用；dispatcher 用 mkLuaInline 原样写 Lua。
+  wayland.windowManager.hyprland =
+    let
+      lua = lib.generators.mkLuaInline;
+      str = builtins.toJSON; # Nix 字符串 → Lua 字符串字面量
+      # SUPER 组合键：bind "SHIFT + M" "hl.dsp.exit()" → hl.bind(mod .. " + SHIFT + M", hl.dsp.exit())
+      bind = keys: dsp: { _args = [ (lua "mod .. ${str " + ${keys}"}") (lua dsp) ]; };
+      # submap 里的单键，不带修饰键
+      key = k: dsp: { _args = [ k (lua dsp) ]; };
+      exec = cmd: "hl.dsp.exec_cmd(${str cmd})";
+      submap = name: "hl.dsp.submap(${str name})";
+      # 每一级都有 escape + catchall 双保险，任何其他键静默重置，不会锁键盘
+      reset = [
+        (key "escape" (submap "reset"))
+        (key "catchall" (submap "reset"))
       ];
-    }
-    // lib.optionalAttrs eggs {
-      # 命令里不能有逗号（workspace 规则按逗号切分）→ --class 只给一个值
-      workspace = [ "special:forge, on-created-empty:alacritty --class ef-about -e ef-about" ];
-      # Hyprland ≥ 0.53 的 windowrule 语法：match:<prop> <regex>, <effect> <value>
-      windowrule = [
-        "match:class ^(ef-about)$, float on, size 760 520, center on"
-        "match:class ^(ef-forge)$, fullscreen on"
-      ];
+    in
+    {
+      enable = true;
+      configType = "lua";
+      settings = {
+        mod._var = "SUPER";
+        monitor = {
+          output = "";
+          mode = "preferred";
+          position = "auto";
+          scale = 1;
+        };
+        on._args = [
+          "hyprland.start"
+          (lua ''
+            function()
+              hl.exec_cmd("waybar")
+            end'')
+        ];
+
+        config = {
+          general = {
+            gaps_in = 8;
+            gaps_out = 16;
+            border_size = 1;
+            col = {
+              active_border = "rgba(ffffffff)";
+              inactive_border = "rgba(262626ff)";
+            };
+          };
+          decoration.rounding = 8;
+          misc = {
+            disable_hyprland_logo = true;
+            background_color = lua "0x000000";
+          };
+        };
+
+        bind = [
+          (bind "Return" (exec "alacritty"))
+          (bind "D" (exec "fuzzel"))
+          (bind "B" (exec "google-chrome-stable"))
+          (bind "E" (exec "zeditor"))
+          (bind "Q" "hl.dsp.window.close()")
+          (bind "SHIFT + M" "hl.dsp.exit()")
+          (bind "F" "hl.dsp.window.fullscreen()")
+          (bind "H" ''hl.dsp.focus({ direction = "left" })'')
+          (bind "L" ''hl.dsp.focus({ direction = "right" })'')
+          (bind "K" ''hl.dsp.focus({ direction = "up" })'')
+          (bind "J" ''hl.dsp.focus({ direction = "down" })'')
+        ]
+        ++ lib.concatMap (
+          n:
+          let
+            i = toString n;
+          in
+          [
+            (bind i "hl.dsp.focus({ workspace = ${i} })")
+            (bind "SHIFT + ${i}" "hl.dsp.window.move({ workspace = ${i} })")
+          ]
+        ) [ 1 2 3 4 ]
+        ++ lib.optionals eggs [
+          # SUPER+` → About This Forge（special workspace，首次打开为空时才拉起一个临时终端）
+          (bind "grave" ''hl.dsp.workspace.toggle_special("forge")'')
+          # SUPER+SHIFT+F 进入静默 submap，接着拼 O-R-G-E（见 submaps）
+          (bind "SHIFT + F" (submap "forge"))
+        ];
+      }
+      // lib.optionalAttrs eggs {
+        workspace_rule = {
+          workspace = "special:forge";
+          on_created_empty = "alacritty --class ef-about -e ef-about";
+        };
+        window_rule = [
+          {
+            match.class = "^(ef-about)$";
+            float = true;
+            size = "760 520";
+            center = true;
+          }
+          {
+            match.class = "^(ef-forge)$";
+            fullscreen = true;
+          }
+        ];
+      };
+
+      # F-O-R-G-E：逐级 submap；最后一级 onDispatch = "reset"，拉起终端后立即回到默认按键
+      submaps = lib.mkIf eggs {
+        forge.settings.bind = [ (key "O" (submap "forge_o")) ] ++ reset;
+        forge_o.settings.bind = [ (key "R" (submap "forge_r")) ] ++ reset;
+        forge_r.settings.bind = [ (key "G" (submap "forge_g")) ] ++ reset;
+        forge_g = {
+          onDispatch = "reset";
+          settings.bind = [ (key "E" (exec "alacritty --class ef-forge -e ef-forge")) ] ++ reset;
+        };
+      };
     };
 
-    # F-O-R-G-E：每一级都有 catchall + escape 双保险，任何其他键静默重置，不会锁键盘
-    submaps = lib.mkIf eggs {
-      forge.settings.bind = [
-        ", O, submap, forge_o"
-        ", escape, submap, reset"
-        ", catchall, submap, reset"
-      ];
-      forge_o.settings.bind = [
-        ", R, submap, forge_r"
-        ", escape, submap, reset"
-        ", catchall, submap, reset"
-      ];
-      forge_r.settings.bind = [
-        ", G, submap, forge_g"
-        ", escape, submap, reset"
-        ", catchall, submap, reset"
-      ];
-      forge_g.settings.bind = [
-        ", E, exec, alacritty --class ef-forge -e ef-forge"
-        ", E, submap, reset"
-        ", escape, submap, reset"
-        ", catchall, submap, reset"
-      ];
-    };
-  };
+  # Hyprland 0.57 首次启动时若没有 hyprland.lua，会自己写一份默认配置；
+  # force 让 Home Manager 覆盖它，而不是因「文件已存在」中止激活。
+  xdg.configFile."hypr/hyprland.lua".force = true;
 
   # ── Alacritty：纯黑白灰终端 ──
   programs.alacritty = {
